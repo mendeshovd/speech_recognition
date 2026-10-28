@@ -95,6 +95,11 @@ function renderCard(c) {
   head.append(el('span', null, c.example ? 'Example' : '#' + c.id));
   const spacer = el('span', 'spacer', c.at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
   head.append(spacer);
+  if (c.cut) {
+    const chip = el('span', 'chip low', 'unclear audio, end cut');
+    chip.title = 'The speech model got stuck repeating sounds here, so the rest of this sentence was removed. Listen to this part yourself.';
+    head.append(chip);
+  }
   if (typeof c.confidence === 'number' && c.confidence > 0) {
     const pct = Math.round(c.confidence * 100);
     const low = c.confidence < 0.8;
@@ -167,12 +172,12 @@ example.node = el('li');
 function showExample() { feed.append(example.node); renderCard(example); }
 
 /* ---------- adding sentences ---------- */
-function addSegment(raw, confidence) {
+function addSegment(raw, confidence, opts) {
   const text = String(raw || '').replace(/\s+/g, ' ').trim();
   if (!text) return;
   if (example.node.isConnected) example.node.remove();
   const c = {
-    id: S.nextId++, text, confidence, at: new Date(), words: countWords(text),
+    id: S.nextId++, text, confidence, cut: !!(opts && opts.cut), at: new Date(), words: countWords(text),
     lt: null, ltStatus: 'checking', ltError: '', ai: null, aiStatus: aiOn() ? 'checking' : 'off', aiError: ''
   };
   c.node = el('li');
@@ -557,13 +562,13 @@ function onWorkerMessage(e) {
   } else if (m.type === 'text' || m.type === 'error' || m.type === 'skipped') {
     wh.busy = Math.max(0, wh.busy - 1);
     if (m.partial) {
-      if (m.type === 'text' && vad.active && m.id > wh.segId) liveText.textContent = cleanWhisper(m.text, 99);
+      if (m.type === 'text' && vad.active && m.id > wh.segId) liveText.textContent = cleanWhisper(m.text, 99).text;
       return;
     }
     wh.pendingFinals = Math.max(0, wh.pendingFinals - 1);
     if (m.type === 'text') {
-      const text = cleanWhisper(m.text, m.voiced);
-      if (text) addSegment(text, undefined);
+      const r = cleanWhisper(m.text, m.voiced);
+      if (r.text) addSegment(r.text, undefined, { cut: r.cut });
     }
     if (!vad.active) liveText.textContent = '';
     if (S.listening && engine() === 'whisper' && !lastError && !vad.active) {
@@ -572,12 +577,26 @@ function onWorkerMessage(e) {
   }
 }
 
+/* A stretch of 2-40 characters repeated three or more times in a row, 24+ characters in all.
+   Normal speech ("very, very good") stays; a model loop ("de-re-ra-p-de-re-ra-p-...") matches. */
+const LOOP_RE = /(.{2,40}?)\1{2,}/;
+function findLoop(s) {
+  const m = LOOP_RE.exec(s);
+  return m && m[0].length >= 24 ? m : null;
+}
+/* Returns { text, cut }. `cut` is true when a loop was removed. */
 function cleanWhisper(t, voicedSec) {
   let s = String(t || '').replace(/\[[^\]]*\]|\([^)]*\)|\*[^*]*\*/g, ' ').replace(/\s+/g, ' ').trim();
-  if (!/[a-z]/i.test(s)) return '';
-  if (/^(you|bye|thanks for watching[.!]*|subtitles by.*)[.!]*$/i.test(s)) return '';
-  if (voicedSec < 1.2 && /^(thank you|thanks)[.!]*$/i.test(s)) return '';
-  return s;
+  let cut = false;
+  const loop = findLoop(s);
+  if (loop) {
+    s = s.slice(0, loop.index).replace(/[\s,;:-]+$/, '').trim();
+    cut = true;
+  }
+  if (!/[a-z]/i.test(s) || (cut && countWords(s) < 2)) return { text: '', cut };
+  if (/^(you|bye|thanks for watching[.!]*|subtitles by.*)[.!]*$/i.test(s)) return { text: '', cut };
+  if (voicedSec < 1.2 && /^(thank you|thanks)[.!]*$/i.test(s)) return { text: '', cut };
+  return { text: cut ? s + ' …' : s, cut };
 }
 
 function resample(input) {
@@ -630,7 +649,8 @@ function processFrame(f) {
   if (speech) { vad.voiced++; vad.silenceRun = 0; } else vad.silenceRun++;
   const seconds = vad.buf.length * FRAME / RATE;
   const pause = parseFloat($('pause').value) || 0.9;
-  if (vad.silenceRun * FRAME / RATE >= pause || seconds >= 25) endSegment();
+  /* Long stretches make Whisper more likely to loop, so cut a sentence at 15 seconds. */
+  if (vad.silenceRun * FRAME / RATE >= pause || seconds >= 15) endSegment();
   else maybePartial();
 }
 
@@ -797,6 +817,7 @@ function buildReport() {
       const w = c.text.slice(m.offset, m.offset + m.length);
       L.push('   - ' + (w ? w + ' -> ' + (m.replacement || '?') + ' ' : '') + '(' + m.message + ')');
     });
+    if (c.cut) L.push('   Part of this sentence was unclear and was left out');
     if (c.confidence > 0 && c.confidence < 0.8) L.push('   Audio clarity low (' + Math.round(c.confidence * 100) + '%), check pronunciation');
     L.push('');
   });

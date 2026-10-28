@@ -48,7 +48,13 @@ async function pump() {
         continue;
       }
       try {
-        const out = await asr(job.audio);
+        // Whisper can loop on unclear audio ("de-re-ra-de-re-ra..."). Block any 6-token
+        // phrase from repeating, and cap the output to what a person can say in that time.
+        const seconds = job.audio.length / 16000;
+        const out = await asr(job.audio, {
+          no_repeat_ngram_size: 6,
+          max_new_tokens: Math.min(220, Math.ceil(seconds * 6) + 12)
+        });
         postMessage({ type: 'text', id: job.id, partial: !!job.partial, voiced: job.voiced, text: (out && out.text) || '' });
       } catch (err) {
         postMessage({ type: 'error', id: job.id, partial: !!job.partial, message: String((err && err.message) || err) });
