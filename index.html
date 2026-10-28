@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Speaking Check</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Caveat:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <h1>Speaking Check</h1>
+      <p class="sub">Live transcript with red-pen corrections.</p>
+    </div>
+    <div class="fields">
+      <div class="field">
+        <label for="student">Student</label>
+        <input id="student" type="text" placeholder="Name" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="level">Level</label>
+        <select id="level">
+          <option value="A2">A2</option>
+          <option value="B1" selected>B1</option>
+          <option value="B2">B2</option>
+          <option value="C1">C1</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="source">Listen to</label>
+        <select id="source">
+          <option value="mic">Microphone</option>
+          <option value="call">Call audio (headphones)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="accent">English</label>
+        <select id="accent">
+          <option value="en-US">American</option>
+          <option value="en-GB">British</option>
+          <option value="en-AU">Australian</option>
+        </select>
+      </div>
+    </div>
+  </header>
+
+  <p id="callHelp" class="notice help" hidden>After you press Start, the browser asks what to share. If the call is in a browser tab (Google Meet, Zoom on the web), choose that <strong>tab</strong> and keep <strong>Share tab audio</strong> on. If the call is in the Zoom, Teams or Skype app, choose <strong>Entire screen</strong> and turn on <strong>Also share system audio</strong>. Only the sound is used; nothing is recorded. Your own voice is not in the call audio, so only the student is checked.</p>
+
+  <p id="support" class="notice" hidden>Live recognition needs Google Chrome. Open this file in Chrome.</p>
+
+  <section class="stage" aria-label="Microphone">
+    <button id="toggle" class="primary" type="button" aria-pressed="false">
+      <span class="dot" aria-hidden="true"></span><span id="toggleLabel">Start listening</span>
+    </button>
+    <div class="meter" aria-hidden="true"><i id="meterBar"></i></div>
+    <p id="status" class="status" role="status" aria-live="polite">Ready. Press start and let the student speak.</p>
+  </section>
+
+  <dl class="stats" aria-label="Session numbers">
+    <div><dt>Time</dt><dd id="sTime">00:00</dd></div>
+    <div><dt>Words</dt><dd id="sWords">0</dd></div>
+    <div><dt>Words / min</dt><dd id="sPace">–</dd></div>
+    <div><dt>Fillers</dt><dd id="sFill">0</dd></div>
+    <div><dt>Flagged</dt><dd><span id="sFlag">0</span><small id="sTotal"> / 0</small></dd></div>
+  </dl>
+
+  <section class="live" aria-label="Live transcript">
+    <h2>Hearing now</h2>
+    <p id="liveText" class="live-text"></p>
+  </section>
+
+  <form id="manual" class="manual">
+    <label class="sr" for="manualText">Type or paste a sentence to check</label>
+    <input id="manualText" type="text" placeholder="Or type a sentence to check it" autocomplete="off">
+    <button class="ghost" type="submit">Check</button>
+  </form>
+
+  <section aria-label="Marked sentences" style="display:grid;gap:12px">
+    <div class="feed-head">
+      <h2>Marked sentences, newest first</h2>
+      <div class="actions">
+        <button id="copy" class="ghost" type="button">Copy report</button>
+        <button id="clear" class="ghost" type="button">Clear session</button>
+      </div>
+    </div>
+    <ol id="feed" class="feed"></ol>
+  </section>
+
+  <details class="settings">
+    <summary>Settings and privacy</summary>
+    <div class="settings-body">
+      <div class="field">
+        <label for="modelSize">Speech model for call audio</label>
+        <select id="modelSize">
+          <option value="tiny">Tiny: fastest, about 40 MB</option>
+          <option value="base" selected>Base: balanced, about 80 MB</option>
+          <option value="small">Small: most accurate, about 250 MB, needs a strong computer</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="pause">Pause that ends a sentence</label>
+        <select id="pause">
+          <option value="0.6">0.6 seconds (fast speakers)</option>
+          <option value="0.9" selected>0.9 seconds</option>
+          <option value="1.4">1.4 seconds (slow speakers, long thinking pauses)</option>
+        </select>
+      </div>
+      <p class="small">Used for call audio. It downloads once, then Chrome keeps it, and the call audio never leaves your computer. Whisper sometimes smooths over small grammar mistakes when it writes the text, so listen for errors it may have fixed.</p>
+      <label class="check"><input id="aiToggle" type="checkbox" checked> Ask Claude about each sentence</label>
+      <div class="field">
+        <label for="apiKey">Anthropic API key</label>
+        <input id="apiKey" type="password" autocomplete="off" placeholder="sk-ant-...">
+      </div>
+      <div class="field">
+        <label for="model">Model</label>
+        <select id="model">
+          <option value="claude-haiku-5-5">Haiku 5.5 (fast)</option>
+          <option value="claude-sonnet-5-5">Sonnet 5.5 (more careful)</option>
+        </select>
+      </div>
+      <label class="check"><input id="remember" type="checkbox"> Remember the key on this computer</label>
+      <p class="small">Without a key you still get grammar checks from LanguageTool. With the microphone, Chrome sends the audio to Google's speech service. Each sentence's text goes to LanguageTool, and to Anthropic when a key is set. Keep that in mind with student data.</p>
+    </div>
+  </details>
+
+</div>
+<div id="toast" class="toast" role="status" hidden></div>
+
+<script src="app.js" defer></script>
+</body>
+</html>
